@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <title>부산대 모의 수강신청</title>
+
+  <!-- 공통 CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+<!-- ===== 상단 헤더 ===== -->
+<%- include("partials/header", { page: "sugang" }) %>
+
+<script>
+  window.SESSION_LOGIN_AT = <%= loginAt %>;
+</script>
+<script src="/js/sessionTimer.js"></script>
+
+<div class="page-container sugang-offset">
+
+<div class="sugang-main">
+  <!-- ================= 왼쪽 ================= -->
+  <div class="sugang-left">
+    <h3><%= user.name %></h3>
+    <p><strong><%= user.id %></strong></p>
+
+    <hr>
+
+    <p>취득학점: <strong>91</strong></p>
+    <p>수강가능학점: <strong><%= maxCredit %></strong></p>
+  </div>
+
+  <!-- ================= 오른쪽 ================= -->
+  <div style="flex:1">
+
+    <!-- ===== 희망과목담기 ===== -->
+    <h3>희망과목담기</h3>
+
+    <table>
+      <tr>
+        <th>no</th>
+        <th>신청</th>
+        <th>교과목명</th>
+        <th>코드</th>
+        <th>분반</th>
+        <th>구분</th>
+        <th>학점</th>
+        <th>교수</th>
+        <th>학과</th>
+        <th>시간</th>
+        <th>비고</th>
+      </tr>
+
+      <% beforeCourses.forEach((c, i) => { %>
+        <tr>
+          <td><%= i + 1 %></td>
+          <td>
+            <% if (Number(c.status) === 0) { %>
+              <button onclick="applyCourse(<%= c.id %>, this)">신청</button>
+            <% } else { %>
+              <span style="color:green;">완료</span>
+            <% } %>
+          </td>
+          <td><%= c.course_name %></td>
+          <td><%= c.course_code %></td>
+          <td><%= c.class_no %></td>
+          <td><%= c.course_type %></td>
+          <td><%= c.credit %></td>
+          <td><%= c.professor %></td>
+          <td><%= c.department %></td>
+          <td><%= c.time_info %></td>
+          <td><%= c.memo %></td>
+        </tr>
+      <% }) %>
+    </table>
+
+    <hr>
+
+    <div id="messageBox" style="
+      display:none;
+      padding:10px;
+      margin:10px 0;
+      font-weight:bold;
+    "></div>
+
+    <!-- ===== 수강신청내역 ===== -->
+    <h3>수강신청내역</h3>
+
+    <p>
+      신청과목수 <strong id="appliedCount"><%= appliedCoursesRaw.length %></strong> /
+      신청학점 <strong id="appliedCredit"><%= earnedCredit %></strong> /
+      신청가능학점
+      <strong id="remainCredit"><%= maxCredit - earnedCredit %></strong>
+    </p>
+
+    <table id="appliedTable">
+      <tr>
+        <th>no</th>
+        <th>삭제</th>
+        <th>교과목명</th>
+        <th>코드</th>
+        <th>분반</th>
+        <th>구분</th>
+        <th>학점</th>
+        <th>시간</th>
+        <th>비고</th>
+      </tr>
+
+      <% appliedCoursesRaw.forEach((c, i) => { %>
+        <tr
+          id="applied-row-<%= c.id %>"
+          data-row="1"
+          data-credit="<%= c.credit %>"
+          data-order="<%= c.order_no %>"
+        >
+          <td class="no"><%= i + 1 %></td>
+          <td>
+            <button onclick="deleteApplied(<%= c.id %>)">삭제</button>
+          </td>
+          <td><%= c.course_name %></td>
+          <td><%= c.course_code %></td>
+          <td><%= c.class_no %></td>
+          <td><%= c.course_type %></td>
+          <td><%= c.credit %></td>
+          <td><%= c.time_info %></td>
+          <td><%= c.memo %></td>
+        </tr>
+      <% }) %>
+    </table>
+
+  </div>
+</div>
+
+<script>
+    /**
+     * 화면 상단 메시지 박스 출력
+     * 성공/실패 여부에 따라 색상 변경
+     */
+    function showMessage(msg, success) {
+        const box = document.getElementById("messageBox");
+        box.style.display = "block";
+        box.style.background = success ? "#d4f8d4" : "#f8d4d4";
+        box.style.color = success ? "green" : "red";
+        box.innerText = msg;
+    }
+
+    /**
+     * 화면에 표시된 수강신청내역을 기준으로
+     * 신청 학점 및 남은 학점을 다시 계산
+     */
+    function recalcCredit() {
+        let sum = 0;
+        document.querySelectorAll("#appliedTable tr[data-row]")
+        .forEach(row => {
+            sum += Number(row.dataset.credit || 0);
+        });
+
+        document.getElementById("appliedCredit").innerText = sum;
+        document.getElementById("remainCredit").innerText =
+        <%= maxCredit %> - sum;
+    }
+
+    /**
+     * 희망과목 신청 처리
+     * - 학점 초과 여부를 클라이언트에서 1차 검사
+     * - 서버에 신청 요청 후 결과에 따라 화면 갱신
+     */
+    function applyCourse(courseId, btn) {
+        btn.disabled = true;
+        btn.innerText = "처리중...";
+
+        // 현재 신청학점
+        const currentCredit = Number(
+            document.getElementById("appliedCredit").innerText
+        );
+
+        // 신청하려는 과목 학점 
+        const row = btn.closest("tr");
+        const courseCredit = Number(
+            row.children[6].innerText // 학점 COLUMN
+        );
+
+        // 학점 초과 시 신청 차단
+        if (currentCredit + courseCredit > <%= maxCredit %>) {
+            showMessage("신청가능 학점을 초과했습니다.", false);
+            btn.disabled = false;
+            btn.innerText = "신청";
+            return;
+        }
+
+        fetch("/sugang/apply", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ courseId })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+            showMessage(data.message, false);
+            btn.disabled = false;
+            btn.innerText = "신청";
+            return;
+            }
+
+            // 신청 성공 시 버튼 상태 변경
+            btn.outerHTML = `<span style="color:green;">완료</span>`;
+
+            addAppliedRow(data.course);
+
+            document.getElementById("appliedCount").innerText =
+                Number(document.getElementById("appliedCount").innerText) + 1;
+
+            recalcCredit();
+            renumberAppliedTable();
+
+            showMessage(
+            `${data.course.course_name} 신청이 완료되었습니다.`,
+            true
+            );
+        });
+    }
+
+    /**
+     * 수강신청 성공한 과목을
+     * 수강신청내역 테이블에 추가
+     */
+    function addAppliedRow(course) {
+      const table = document.getElementById("appliedTable");
+
+      const newRow = document.createElement("tr");
+      newRow.id = "applied-row-" + course.id;
+      newRow.dataset.row = "1";
+      newRow.dataset.credit = course.credit;
+      newRow.dataset.order = course.order_no;
+
+      newRow.innerHTML = `
+        <td class="no"></td>
+        <td><button onclick="deleteApplied(${course.id})">삭제</button></td>
+        <td>${course.course_name}</td>
+        <td>${course.course_code}</td>
+        <td>${course.class_no}</td>
+        <td>${course.course_type}</td>
+        <td>${course.credit}</td>
+        <td>${course.time_info}</td>
+        <td>${course.memo || ""}</td>
+      `;
+
+      table.appendChild(newRow);
+    }
+
+    /**
+     * 수강신청내역 삭제
+     * 서버에 삭제 요청 후 화면에서도 제거
+     */
+    function deleteApplied(courseId) {
+      fetch("/sugang/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+
+        const row = document.getElementById("applied-row-" + courseId);
+        if (!row) return;
+
+        row.remove();
+
+        document.getElementById("appliedCount").innerText =
+          Number(document.getElementById("appliedCount").innerText) - 1;
+
+        recalcCredit();
+        renumberAppliedTable();
+
+        showMessage(
+          `${data.course.course_name}을 취소했습니다.`,
+          false
+        );
+      });
+    }
+
+    /**
+     * 수강신청내역 테이블의 번호(no) 재정렬
+     */
+    function renumberAppliedTable() {
+      document.querySelectorAll("#appliedTable tr[data-row]")
+        .forEach((row, idx) => {
+          row.querySelector(".no").innerText = idx + 1;
+        });
+    }
+
+    // 최초 로딩 시 번호 정렬
+    renumberAppliedTable();
+</script>
+
+</div>
+
+</body>
+</html>
+

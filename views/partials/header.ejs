@@ -1,0 +1,27 @@
+<header class="main-header">
+  <!-- 왼쪽 영역 -->
+  <div class="header-left">
+    <strong class="logo">🎓 부산대학교</strong>
+
+    <% if (page === "sugang") { %>
+      <span class="current-page">수강신청</span>
+    <% } %>
+
+    <a href="/setting" class="header-link">
+      공지사항
+    </a>
+  </div>
+
+  <!-- 오른쪽 영역 -->
+  <div class="header-right">
+    <!-- 세션 만료 타이머 -->
+    <span class="timer">
+      ⏳<span id="sessionTimer">--:--</span>
+    </span>
+
+    <a href="/logout" class="header-link">로그아웃</a>
+  </div>
+</header>
+
+
+

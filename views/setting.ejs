@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>설정</title>
+
+  <!-- 공통 CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+<%- include("partials/header", { page: "setting" }) %>
+
+<script>
+  window.SESSION_LOGIN_AT = <%= loginAt %>;
+</script>
+<script src="/js/sessionTimer.js"></script>
+
+<div class="page-container setting-offset">
+
+<h2><%= user.name %>학생의 과목</h2>
+
+<p class="setting-notice">
+  ※ 원활한 연습을 위해 희망과목담기 순서와 동일하게 순서를 설정하시길 바랍니다.<br>
+  ※ 과목명이나 시간이 정확히 같으면 수강신청 실패를 시뮬레이션할 수 있습니다.<br>
+  ※ 과목을 추가/수정/삭제한 후에는 반드시 '저장' 버튼을 눌러주세요.
+</p>
+
+<button onclick="addCourse()">+ 과목 추가</button>
+
+<div id="courseList">
+  <% courses.forEach(c => { %>
+    <fieldset data-id="<%= c.id %>" class="course-field readonly">
+        <div>
+        순서 <input name="order_no" type="number" value="<%= c.order_no %>">
+        과목명 <input name="course_name" value="<%= c.course_name %>">
+        코드 <input name="course_code" value="<%= c.course_code %>">
+        분반 <input name="class_no" value="<%= c.class_no %>">
+        </div>
+
+        <div>
+        구분
+        <select name="course_type">
+            <% ["교양선택","교양필수","전공기초","전공필수","전공선택","일반선택"].forEach(t=>{ %>
+            <option value="<%= t %>" <%= c.course_type===t?"selected":"" %>><%= t %></option>
+            <% }) %>
+        </select>
+
+        학점 <input name="credit" type="number" value="<%= c.credit %>">
+        교수 <input name="professor" value="<%= c.professor %>">
+        </div>
+
+        <div>
+        학과 <input name="department" value="<%= c.department %>">
+        시간 <input name="time_info" value="<%= c.time_info %>">
+        비고 <input name="memo" value="<%= c.memo || "" %>">
+        </div>
+
+        <div>
+        상태
+        <select name="status">
+            <option value="0" <%= c.status===0?"selected":"" %>>수강신청 전</option>
+            <option value="1" <%= c.status===1?"selected":"" %>>자동신청 성공</option>
+        </select>
+        </div>
+
+        <button onclick="enableEdit(this)">수정</button>
+        <button onclick="saveCourse(this)">저장</button>
+        <button onclick="deleteCourse(<%= c.id %>)">삭제</button>
+    </fieldset>
+  <% }) %>
+</div>
+
+<hr>
+
+<h3>수강 가능 학점</h3>
+<input id="maxCredit" type="number" value="<%= user.max_credit %>">
+
+<h3>모의 수강신청 실패 확률</h3>
+<select id="failRate">
+  <option value="0-20">0~20%</option>
+  <option value="20-40">20~40%</option>
+  <option value="40-60">40~60%</option>
+  <option value="60-80">60~80%</option>
+</select>
+
+<br><br>
+<button onclick="saveSetting()">설정 저장</button>
+
+<!-- 모달 배경 (블러) -->
+<div id="modalOverlay"></div>
+<div id="modalBox">
+  <div id="modalMessage"></div>
+  <button onclick="closeModal()">확인</button>
+</div>
+
+
+<h3 id="timerTitle" class="timer-title">모의 수강신청 시계</h3>
+<h2 id="timer" class="timer-display"></h2>
+
+<div class="center">
+  <button onclick="goSugang()">수강신청 바로가기</button>
+</div>
+
+</div>
+
+<script>
+/**
+ * 과목 수정 가능 상태로 전환
+ * readonly 클래스를 제거하여 입력 필드 활성화
+ */
+function enableEdit(btn){
+  btn.closest("fieldset").classList.remove("readonly");
+}
+
+/**
+ * 과목 정보 저장
+ * - 기존 과목: PUT /setting/course/:id
+ * - 새 과목: POST /setting/course
+ */
+function saveCourse(btn){
+  const fs = btn.closest("fieldset");
+  const id = fs.dataset.id;
+
+  // fieldset 내부 input/select 값을 객체로 수집
+  const data = {};
+  fs.querySelectorAll("input, select").forEach(el=>{
+    data[el.name] = el.value;
+  });
+
+  fetch(id ? `/setting/course/${id}` : "/setting/course", {
+    method: id ? "PUT" : "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify(data)
+  })
+  .then(r=>r.json())
+  .then(r=>{
+    if(r.success){
+      fs.classList.add("readonly");
+      // 새 과목 추가 시 화면 동기화를 위해 새로고침
+      if(!id) location.reload();
+    } else alert("저장 실패");
+  });
+}
+
+/**
+ * 과목 삭제
+ * DB에서 해당 과목 제거 후 화면 갱신
+ */
+function deleteCourse(id){
+  fetch(`/setting/course/${id}`, { method:"DELETE" })
+    .then(res => res.json())
+    .then(r => {
+      if (r.success) location.reload();
+    });
+}
+
+/**
+ * 새 과목 입력 폼을 화면에 추가
+ * (DB 저장은 저장 버튼 클릭 시 수행)
+ */
+function addCourse(){
+  const fs = document.createElement("fieldset");
+  fs.innerHTML = `
+    <div>
+      순서 <input name="order_no" type="number" value="0">
+      과목명 <input name="course_name" placeholder="웹응용프로그래밍">
+      코드 <input name="course_code" placeholder="CSE205">
+      분반 <input name="class_no" placeholder="059">
+    </div>
+    <div>
+      구분
+      <select name="course_type">
+        <option>전공필수</option><option>전공기초</option><option>전공선텍</option>
+        <option>교양필수</option><option>교양선택</option><option>일반선택</option>
+      </select>
+      학점 <input name="credit" type="number" value="3">
+      교수 <input name="professor" placeholder="김원석">
+    </div>
+    <div>
+      학과 <input name="department" placeholder="컴퓨터공학전공">
+      시간 <input name="time_info" placeholder="화/목 13:30-14:45">
+      비고 <input name="memo">
+    </div>
+    <div>
+      상태
+      <select name="status">
+        <option value="0">수강신청 전</option>
+        <option value="1">자동신청 성공</option>
+      </select>
+    </div>
+    <button onclick="saveCourse(this)">저장</button>
+    <button onclick="this.parentElement.remove()">삭제</button>
+  `;
+  document.getElementById("courseList").prepend(fs);
+}
+
+/**
+ * 환경 설정 저장
+ * - 수강 가능 학점
+ * - 실패 확률
+ * 저장 후 모의 수강신청 타이머 시작
+ */
+function saveSetting(){
+  fetch("/setting/env",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      max_credit: document.getElementById("maxCredit").value,
+      failRate: document.getElementById("failRate").value
+    })
+  }).then(()=>{
+    startTimer();
+  });
+}
+
+/* ==========================
+   모의 수강신청 타이머 로직
+   ========================== */
+
+let seconds = 59 * 60;
+let interval = null;
+
+/**
+ * 모의 수강신청 타이머 시작
+ * 설정 저장 시 호출됨
+ */
+function startTimer(){
+  document.getElementById("timerTitle").style.display = "block";
+
+  if(interval) clearInterval(interval);
+  seconds = 59 * 60 + 50;   // 59분 50초
+  updateTimer();
+
+  interval = setInterval(()=>{
+    seconds++;
+    updateTimer();
+  },1000);
+}
+
+/**
+ * 타이머 화면 갱신
+ */
+function updateTimer(){
+  const m = Math.floor(seconds / 60) % 60; // 60분 초과 시 분 초기화
+  const s = seconds % 60;
+
+  document.getElementById("timer").innerText =
+    `${String(m).padStart(2,"0")}분 ${String(s).padStart(2,"0")}초`;
+}
+
+/**
+ * 수강신청 페이지로 이동
+ * 타이머가 60분 이상 경과해야 이동 가능
+ */
+function goSugang(){
+  if(seconds < 3600){
+    showModal("아직 수강신청 시간이 아닙니다.\n(설정 저장을 눌러보세요!)");
+    return;
+  }
+  location.href = "/sugang";
+}
+
+/**
+ * 안내 메시지 모달 표시
+ */
+function showModal(message) {
+  document.getElementById("modalMessage").innerText = message;
+  document.getElementById("modalOverlay").style.display = "block";
+  document.getElementById("modalBox").style.display = "block";
+}
+
+/**
+ * 모달 닫기
+ */
+function closeModal() {
+  document.getElementById("modalOverlay").style.display = "none";
+  document.getElementById("modalBox").style.display = "none";
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>회원가입 - 부산대학교 수강신청 (모의)</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <h2 class="title">회원가입</h2>
+
+    <% if (error) { %>
+        <script>
+            alert("<%= error %>");
+        </script>
+    <% } %>
+
+    <form class="login-form" action="/register" method="post">
+      <input
+        type="text"
+        name="studentId"
+        placeholder="학번"
+        required
+      />
+      <input
+        type="text"
+        name="name"
+        placeholder="이름"
+        required
+      />
+      <input
+        type="password"
+        name="password"
+        placeholder="비밀번호"
+        required
+      />
+      <button type="submit">가입</button>
+    </form>
+
+    <a class="register-link" href="/">로그인으로 돌아가기</a>
+  </div>
+</body>
+</html>
+
+
