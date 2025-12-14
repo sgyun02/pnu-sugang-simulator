@@ -17,10 +17,15 @@ pnu-mock-sugang/
 ├── middleware/                    # 공통 미들웨어
 │   └── auth.js                    # 로그인 여부 인증 미들웨어
 │
+├── controllers/                   # 비즈니스 로직 처리 계층
+│   ├── authController.js          # 로그인 / 회원가입 처리 로직
+│   ├── settingController.js       # 과목 및 환경 설정 로직
+│   └── sugangController.js        # 수강신청 핵심 로직
+│
 ├── routes/                        # Express 라우터
-│   ├── auth.js                    # 로그인 / 회원가입 / 로그아웃 처리
-│   ├── setting.js                 # 과목 관리 및 환경 설정 기능
-│   └── sugang.js                  # 모의 수강신청 로직
+│   ├── auth.js                    # 인증 관련 라우팅
+│   ├── setting.js                 # 설정 관련 라우팅
+│   └── sugang.js                  # 수강신청 관련 라우팅
 │
 ├── public/                        # 정적 파일
 │   ├── css/
@@ -35,5 +40,6 @@ pnu-mock-sugang/
     ├── register.ejs               # 회원가입 페이지
     ├── setting.ejs                # 과목 / 환경 설정 페이지
     └── sugang.ejs                 # 수강신청 페이지
+
 
 ```
